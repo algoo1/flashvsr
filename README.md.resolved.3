@@ -1,0 +1,70 @@
+# FlashVSR RunPod Deployment
+
+This repository contains the deployment files for **FlashVSR v1.1** on RunPod.
+
+## Overview
+- **Dockerfile**: Builds the environment with PyTorch 2.1, CUDA 12.1, and compiles `Block-Sparse-Attention`.
+- **app.py**: A Gradio web interface for upscaling videos.
+- **start.sh**: Entrypoint that automatically downloads model weights from Hugging Face if missing.
+
+## Deployment Instructions
+
+### 1. Build & Run Locally (Requires NVIDIA GPU)
+```bash
+docker build -t flashvsr .
+docker run --gpus all -p 7860:7860 flashvsr
+```
+Open `http://localhost:7860`.
+
+### 2. Deploy directly on RunPod (Faster & Recommended)
+If building locally is too slow or fails, do this:
+
+1.  **Create a Pod** on RunPod using the **"RunPod PyTorch 2.1"** template.
+    - GPU: NVIDIA A100 (80GB).
+2.  **Connect** to the Pod (via Web Terminal or Jupyter Lab).
+3.  **Run these commands** inside the Pod:
+    ```bash
+    git clone https://github.com/algoo1/flashvsr
+    cd flashvsr
+    bash setup_runpod.sh
+    ```
+4.  **Start the App**:
+    ```bash
+    python app.py
+    ```
+5.  **Access**: Use the "Connect" -> "HTTP Service (Port 7860)" button.
+
+### 3. Deploy via Docker Image (Old Method)
+1.  **Push** this repository to GitHub.
+2.  **Build** the Docker image (or let RunPod build it if using a template that supports it, but usually better to push to Docker Hub/GHCR).
+    *   Command: `docker build -t yourusername/flashvsr:latest .`
+    *   Push: `docker push yourusername/flashvsr:latest`
+3.  **Create Pod** on RunPod:
+    *   Select GPU (Recommended: **NVIDIA A100** or A800).
+    *   Image: `yourusername/flashvsr:latest`
+    *   Container Disk: `20GB`+ (Model weights are large).
+    *   Expose Port: `7860`.
+4.  **Access**: Use the RunPod provided URL for port 7860.
+
+## Notes
+- The first run will download ~10GB of model weights to `/app/FlashVSR-v1.1`. To avoid re-downloading, consider using a Network Volume.
+
+## Troubleshooting: Build Failed?
+If you see a **"Build Failed"** error on RunPod (or other platforms) during the build process, it is likely because **compiling `Block-Sparse-Attention` requires more RAM** (often >16GB) than the default build instance provides.
+
+**Solution: Build Locally and Push**
+Instead of letting RunPod build the image, build it on your computer (or a powerful server) and push it to Docker Hub.
+
+1.  **Login to Docker Hub** (create an account if needed):
+    ```bash
+    docker login
+    ```
+2.  **Build and Push**:
+    ```bash
+    # Replace 'yourusername' with your actual Docker Hub username
+    docker build -t yourusername/flashvsr:latest .
+    docker push yourusername/flashvsr:latest
+    ```
+3.  **Deploy on RunPod**:
+    - Use the image: `yourusername/flashvsr:latest`
+
