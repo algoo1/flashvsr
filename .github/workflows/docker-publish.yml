@@ -1,35 +1,48 @@
-name: Build and Push Docker Image
+name: Build and Push Docker Image (Optimized)
 
 on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
 
+env:
+  IMAGE_NAME: algonum1/flashvsr:latest
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          # this might remove tools that are actually needed,
-          # if set to "true" but usually not needed for docker builds
-          tool-cache: false
+      - name: Maximize build space
+        run: |
+          echo "Before cleanup:"
+          df -h
           
-          # all of these default to true, but feel free to set to
-          # "false" if necessary for your workflow
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
+          # Remove unnecessary packages
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          
+          # Clean apt cache
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          
+          echo "After cleanup:"
+          df -h
 
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -37,9 +50,20 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push
+      - name: Build and push with cache
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: algonum1/flashvsr:latest
+          tags: ${{ env.IMAGE_NAME }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            MAX_JOBS=1
+            BUILDKIT_INLINE_CACHE=1
+          
+      - name: Verify image
+        run: |
+          docker pull ${{ env.IMAGE_NAME }}
+          docker images | grep flashvsr
+          echo "✅ Build successful!"
