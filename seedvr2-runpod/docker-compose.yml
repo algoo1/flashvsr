@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  seedvr2:
+    build: .
+    image: seedvr2-runpod:latest
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./ckpts:/app/ckpts # Cache weights locally
+      - ./output:/app/output
+    ports:
+      - "8000:8000"
+    command: python -u -m src.api.handler
